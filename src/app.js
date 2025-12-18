@@ -8,18 +8,29 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const defaultOrigins = ['https://nit.care/'];
+const normalizeOrigin = origin => (typeof origin === 'string' ? origin.replace(/\/$/, '') : origin);
+
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:4173', 'https://nit.care', 'https://www.nit.care'];
 
 const allowedOrigins = [
   ...defaultOrigins,
   ...(process.env.CLIENT_URL || '')
     .split(',')
-    .map(origin => origin.trim())
+    .map(origin => normalizeOrigin(origin.trim()))
     .filter(Boolean),
 ];
 
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    const normalized = normalizeOrigin(origin);
+    if (allowedOrigins.includes(normalized)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
   credentials: true,
 };
 
