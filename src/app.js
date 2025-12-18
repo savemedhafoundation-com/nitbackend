@@ -8,13 +8,18 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URL || '')
-  .split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean);
+const defaultOrigins = ['http://localhost:5173'];
+
+const allowedOrigins = [
+  ...defaultOrigins,
+  ...(process.env.CLIENT_URL || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean),
+];
 
 const corsOptions = {
-  origin: allowedOrigins.length ? allowedOrigins : '*',
+  origin: allowedOrigins,
   credentials: true,
 };
 
