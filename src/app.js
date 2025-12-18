@@ -8,7 +8,7 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const defaultOrigins = ['http://localhost:5173'];
+const defaultOrigins = ['https://nit.care/'];
 
 const allowedOrigins = [
   ...defaultOrigins,
