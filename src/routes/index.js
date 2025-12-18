@@ -4,6 +4,7 @@ const infoRoutes = require('./infoRoutes');
 const patientRoutes = require('./patientRoutes');
 const chatRoutes = require('./chatRoutes');
 const symptomCheckerRoutes = require('./symptomCheckerRoutes');
+const reportRoutes = require('./reportRoutes');
 
 const router = express.Router();
 
@@ -12,5 +13,6 @@ router.use('/auth', authRoutes);
 router.use('/content', infoRoutes);
 router.use('/patient', patientRoutes);
 router.use('/checker', symptomCheckerRoutes);
+router.use('/reports', reportRoutes);
 
 module.exports = router;
