@@ -9,9 +9,11 @@ const allowedMimeTypes = {
   'image/jpg': 'image',
 };
 
-const openAiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openAiClient = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null;
 
 const getFetch = async () => {
   if (typeof fetch !== 'undefined') return fetch;
@@ -33,6 +35,58 @@ const normalizeGender = gender => {
   if (value.startsWith('m')) return 'male';
   if (value.startsWith('f')) return 'female';
   return null;
+};
+
+const extractPatientDetails = rawText => {
+  const normalizedText = cleanText(rawText);
+  const lines = normalizedText.split('\n').map(line => line.trim()).filter(Boolean);
+
+  let name = null;
+  let age = null;
+  let gender = null;
+
+  const clampAge = value => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    if (num < 0 || num > 120) return null;
+    return num;
+  };
+
+  for (const line of lines) {
+    if (!name) {
+      const nameMatch = line.match(/(?:patient\s*name|name|pt\s*name)\s*[:\-]\s*([A-Za-z][A-Za-z\s.'-]{1,60})/i);
+      if (nameMatch) {
+        name = nameMatch[1].replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    if (age === null) {
+      const ageMatch =
+        line.match(/(?:age|years?|yrs?|y\/o)\s*[:\-]?\s*(\d{1,3})/i) ||
+        line.match(/(\d{1,3})\s*(?:year|yr)s?\s*old/i);
+      if (ageMatch) {
+        age = clampAge(ageMatch[1]);
+      }
+    }
+
+    if (!gender) {
+      const genderMatch = line.match(/(?:sex|gender)\s*[:\-]?\s*([A-Za-z]+)/i);
+      const normalized =
+        normalizeGender(genderMatch ? genderMatch[1] : null) ||
+        (/\bfemale\b/i.test(line) ? 'female' : /\bmale\b/i.test(line) ? 'male' : null);
+      if (normalized) {
+        gender = normalized;
+      }
+    }
+
+    if (name && age !== null && gender) break;
+  }
+
+  return {
+    name: name || null,
+    age,
+    gender,
+  };
 };
 
 const pickReferenceRange = (definition, gender) => {
@@ -76,6 +130,10 @@ const extractValueForDefinition = (text, definition) => {
 
 const structureParameters = (rawText, patient) => {
   const gender = normalizeGender(patient?.gender || patient?.sex);
+  const age = patient?.age;
+  const parsedAge = Number(age);
+  const safeAge = Number.isFinite(parsedAge) && `${age}`.trim() !== '' ? parsedAge : null;
+  const name = typeof patient?.name === 'string' ? patient.name.trim() || null : null;
   const normalizedText = cleanText(rawText);
 
   const parameters = parameterDefinitions
@@ -102,7 +160,8 @@ const structureParameters = (rawText, patient) => {
 
   return {
     patient: {
-      age: patient?.age ?? null,
+      name,
+      age: safeAge,
       gender,
     },
     parameters,
@@ -252,7 +311,7 @@ const fallbackExplanation = structured => {
 };
 
 const generateAiExplanation = async (structured, rawText) => {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!openAiClient) {
     return fallbackExplanation(structured);
   }
 
@@ -262,25 +321,91 @@ const generateAiExplanation = async (structured, rawText) => {
 
   const knowledgeSummary = buildKnowledgeSummary(structured.parameters);
 
-  const systemPrompt = `
+//   const systemPrompt = `
+// You are a Natural Immunotherapy medical report explainer.
+// Your goals: simplify lab reports, flag low/high values, give educational guidance only and describe the report in layman's terms.
+// Never diagnose, never prescribe medication, never mention drug names or dosages.
+// Use phrases like "may indicate" or "can be related to".
+// Tone: calm, reassuring, safety-first, Natural Immunotherapy aligned (nutrition, detox, repair, rest).
+// Hydration guidance should include the Bengali word "জল" when giving a hydration tip.
+// Always include the exact disclaimer text in the "disclaimer" field: "This explanation is for educational purposes only and does not replace medical diagnosis or treatment."
+// Output JSON only. No prose outside JSON. JSON shape:
+// {
+//   "summary": string,
+//   "parameterExplanation": [
+//     { "name": string, "status": "low|high|normal|unknown", "explanation": string, "guidance": string }
+//   ],
+//   "rootCauseDirection": [string],
+//   "naturalSupportGuidance": [string],
+//   "nextSteps": [string],
+//   "disclaimer": string
+// }
+// `;
+const systemPrompt = `
 You are a Natural Immunotherapy medical report explainer.
-Your goals: simplify lab reports, flag low/high values, give educational guidance only.
-Never diagnose, never prescribe medication, never mention drug names or dosages.
-Use phrases like "may indicate" or "can be related to".
-Tone: calm, reassuring, safety-first, Natural Immunotherapy aligned (nutrition, detox, repair, rest).
-Hydration guidance should include the Bengali word "জল" when giving a hydration tip.
-Always include the exact disclaimer text in the "disclaimer" field: "This explanation is for educational purposes only and does not replace medical diagnosis or treatment."
-Output JSON only. No prose outside JSON. JSON shape:
+
+Your role:
+- Explain **medical reports** in simple, layman-friendly language.
+- You may receive **pathology reports (lab tests)** or **radiology reports (USG, CT, MRI, X-ray, PET, etc.)**.
+- First identify the report type: Pathology or Radiology.
+
+Core rules (STRICT):
+- Never diagnose.
+- Never prescribe medication.
+- Never mention drug names, injections, or dosages.
+- Never claim cure or certainty.
+- Use educational, safety-first language only.
+- Always use phrases like "may indicate", "can be related to", "sometimes seen in", "can suggest".
+- Tone must be calm, reassuring, respectful, and Natural Immunotherapy aligned.
+- Focus on nutrition balance, detox support, cellular repair, rest, hydration, and lifestyle.
+- When giving hydration advice, 반드시 include the Bengali word **"জল"**.
+- Do NOT add content outside JSON.
+- Output JSON ONLY.
+
+If the report is a **PATHOLOGY / LAB REPORT**:
+- Flag values as low / high / normal / unknown.
+- Explain what each parameter generally represents.
+- Give non-medical, educational guidance (nutrition, rest, digestion, hydration).
+- Avoid disease labels unless they are already written in the report, and even then describe them cautiously.
+
+If the report is a **RADIOLOGY REPORT**:
+- Create two mandatory sections inside the explanation:
+  1. **Findings** – simplified explanation of what is seen
+  2. **Impression** – simplified meaning of the radiologist’s impression
+- Do NOT reinterpret or override the radiologist.
+- Do NOT escalate severity.
+- Explain structures, size changes, fluid, inflammation, masses, or organ changes in simple terms.
+
+Allowed references:
+- You may mention:
+  - “as noted in the report”
+  - “as described by the radiologist/pathologist”
+- Do NOT cite studies, journals, or external medical sources.
+
+Output format (MANDATORY JSON STRUCTURE):
 {
+  "reportType": "pathology" | "radiology",
   "summary": string,
+  "findings": string | null,
+  "impression": string | null,
   "parameterExplanation": [
-    { "name": string, "status": "low|high|normal|unknown", "explanation": string, "guidance": string }
+    {
+      "name": string,
+      "status": "low|high|normal|unknown",
+      "explanation": string,
+      "guidance": string
+    }
   ],
   "rootCauseDirection": [string],
   "naturalSupportGuidance": [string],
   "nextSteps": [string],
-  "disclaimer": string
+  "disclaimer": "This explanation is for educational purposes only and does not replace medical diagnosis or treatment."
 }
+
+Important:
+- For pathology reports → findings and impression must be null.
+- For radiology reports → parameterExplanation can be empty [], but findings and impression must be present.
+- Never change the disclaimer text.
 `;
 
   const userPrompt = `
@@ -292,6 +417,9 @@ ${JSON.stringify(structured.parameters, null, 2)}
 
 Knowledge base:
 ${JSON.stringify(knowledgeSummary, null, 2)}
+
+Patient details (extracted):
+${JSON.stringify(structured.patient, null, 2)}
 
 Generate concise, patient-friendly explanations per parameter that is low or high.
 For normal parameters, keep remarks brief. Do not suggest medications or doses.
@@ -332,7 +460,9 @@ For normal parameters, keep remarks brief. Do not suggest medications or doses.
 };
 
 const explainReport = async ({ rawText, patient }) => {
-  const structured = structureParameters(rawText, patient);
+  const extractedPatient = extractPatientDetails(rawText);
+  const mergedPatient = { ...extractedPatient, ...(patient || {}) };
+  const structured = structureParameters(rawText, mergedPatient);
   const explanation = await generateAiExplanation(structured, rawText);
 
   return {
@@ -345,4 +475,5 @@ module.exports = {
   extractReportText,
   explainReport,
   cleanText,
+  extractPatientDetails,
 };
