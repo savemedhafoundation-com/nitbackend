@@ -10,11 +10,21 @@ const app = express();
 
 const normalizeOrigin = origin => (typeof origin === 'string' ? origin.replace(/\/$/, '') : origin);
 
-const defaultOrigins = ['http://localhost:5173', 'http://localhost:4173', 'https://nit.care', 'https://www.nit.care','https://nit-admin.vercel.app/'];
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'https://nit.care',
+  'https://www.nit.care',
+  'https://nit-admin.vercel.app',
+].map(origin => normalizeOrigin(origin));
 
 const allowedOrigins = [
   ...defaultOrigins,
   ...(process.env.CLIENT_URL || '')
+    .split(',')
+    .map(origin => normalizeOrigin(origin.trim()))
+    .filter(Boolean),
+  ...(process.env.ADMIN_URL || '')
     .split(',')
     .map(origin => normalizeOrigin(origin.trim()))
     .filter(Boolean),
