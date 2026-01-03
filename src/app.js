@@ -5,8 +5,13 @@ const cors = require('cors');
 const morgan = require('morgan');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
+const connectDB = require('./config/db');
 
 const app = express();
+
+connectDB().catch(error => {
+  console.error('Failed to connect to database:', error.message);
+});
 
 const normalizeOrigin = origin => (typeof origin === 'string' ? origin.replace(/\/$/, '') : origin);
 
