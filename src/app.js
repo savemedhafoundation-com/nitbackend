@@ -10,7 +10,7 @@ const app = express();
 
 const normalizeOrigin = origin => (typeof origin === 'string' ? origin.replace(/\/$/, '') : origin);
 
-const defaultOrigins = ['http://localhost:5173', 'http://localhost:4173', 'https://nit.care', 'https://www.nit.care'];
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:4173', 'https://nit.care', 'https://www.nit.care','https://nit-admin.vercel.app'];
 
 const allowedOrigins = [
   ...defaultOrigins,
