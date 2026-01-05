@@ -17,7 +17,7 @@ const normalizeOrigin = origin => (typeof origin === 'string' ? origin.replace(/
 
 const defaultOrigins = [
   'http://localhost:5173',
-  'http://localhost:4173',
+  'http://localhost:5174',
   'https://nit.care',
   'https://www.nit.care',
   'https://nit-admin.vercel.app',
