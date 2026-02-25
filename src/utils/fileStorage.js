@@ -18,12 +18,17 @@ const uploadBuffer = (buffer, options) =>
     uploadStream.end(buffer);
   });
 
-const saveUploadFile = async file => {
+const saveUploadFile = async (file, options = {}) => {
   if (!file) return null;
   ensureCloudinary();
 
+  const folder =
+    typeof options.folder === 'string' && options.folder.trim().length > 0
+      ? options.folder.trim()
+      : 'nit-blogs';
+
   const result = await uploadBuffer(file.buffer, {
-    folder: 'nit-blogs',
+    folder,
     resource_type: 'image',
     use_filename: true,
     unique_filename: true,

@@ -6,6 +6,7 @@ const chatRoutes = require('./chatRoutes');
 const symptomCheckerRoutes = require('./symptomCheckerRoutes');
 const reportRoutes = require('./reportRoutes');
 const blogRoutes = require('./blogRoutes');
+const caseStudyRoutes = require('./caseStudyRoutes');
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use('/patient', patientRoutes);
 router.use('/checker', symptomCheckerRoutes);
 router.use('/reports', reportRoutes);
 router.use('/blogs', blogRoutes);
+router.use('/case-studies', caseStudyRoutes);
 
 module.exports = router;
