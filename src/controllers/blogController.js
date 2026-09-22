@@ -14,7 +14,7 @@ const parseArrayField = value => {
       if (Array.isArray(parsed)) {
         return parsed.map(item => String(item).trim()).filter(Boolean);
       }
-    } catch (error) {
+    } catch {
       // Fall back to comma-separated values.
     }
     return trimmed
@@ -41,7 +41,7 @@ const parseFaqs = value => {
       if (Array.isArray(parsed)) {
         return parseFaqs(parsed);
       }
-    } catch (error) {
+    } catch {
       return [];
     }
   }
@@ -57,7 +57,7 @@ const parseAdminStatement = body => {
       if (parsed && typeof parsed === 'object') {
         return parsed;
       }
-    } catch (error) {
+    } catch {
       // Ignore invalid JSON.
     }
   }

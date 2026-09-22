@@ -27,3 +27,5 @@ build
 
 # Project specific
 uploads
+.vercel
+.env*

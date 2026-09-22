@@ -7,6 +7,7 @@ const symptomCheckerRoutes = require('./symptomCheckerRoutes');
 const reportRoutes = require('./reportRoutes');
 const blogRoutes = require('./blogRoutes');
 const caseStudyRoutes = require('./caseStudyRoutes');
+const { ebookRouter, adminEbookRouter, ebookInternalRouter } = require('./ebookRoutes');
 
 const router = express.Router();
 
@@ -18,5 +19,8 @@ router.use('/checker', symptomCheckerRoutes);
 router.use('/reports', reportRoutes);
 router.use('/blogs', blogRoutes);
 router.use('/case-studies', caseStudyRoutes);
+router.use('/ebooks', ebookRouter);
+router.use('/admin/ebooks', adminEbookRouter);
+router.use('/internal/ebooks', ebookInternalRouter);
 
 module.exports = router;

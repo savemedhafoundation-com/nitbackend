@@ -13,7 +13,7 @@ const parseJsonValue = value => {
   if (!trimmed) return '';
   try {
     return JSON.parse(trimmed);
-  } catch (_error) {
+  } catch {
     return value;
   }
 };

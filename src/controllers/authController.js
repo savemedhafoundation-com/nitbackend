@@ -3,7 +3,7 @@ const generateToken = require('../utils/generateToken');
 
 const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       res.status(400);
@@ -17,13 +17,13 @@ const registerUser = async (req, res, next) => {
       throw new Error('User already exists');
     }
 
-    const normalizedRole = role && ['patient', 'admin'].includes(role) ? role : 'patient';
-
     const user = await User.create({
       name,
       email,
       password,
-      role: normalizedRole,
+      // Public registration must never grant administrative permissions.
+      // Administrators are provisioned through the trusted maintenance script.
+      role: 'patient',
     });
 
     res.status(201).json({

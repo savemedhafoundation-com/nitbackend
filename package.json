@@ -7,30 +7,54 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node scripts/seedDemo.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "vercel-start": "node server.js"
+    "lint": "eslint .",
+    "type-check": "tsc --project tsconfig.ebooks.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/ebookBlob.unit.test.mjs tests/ebookConfig.unit.test.mjs",
+    "test:integration": "vitest run tests/auth.integration.test.mjs tests/ebooks.integration.test.mjs",
+    "check:migrations": "node scripts/check-ebook-migration.js",
+    "migrate:ebooks": "node scripts/migrateEbooks.js",
+    "cleanup:ebooks": "node scripts/cleanupEbooks.js",
+    "admin:grant": "node scripts/grantAdmin.js",
+    "build": "esbuild api/index.js --bundle --platform=node --target=node22 --format=cjs --packages=external --outfile=dist/index.cjs",
+    "vercel-start": "node src/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.6.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.2",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
-    "openai": "^6.8.1",
     "node-fetch": "^3.3.2",
+    "openai": "^6.8.1",
     "pdf-parse": "^1.1.1",
     "tesseract.js": "^5.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@eslint/js": "^9.39.5",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.0",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "globals": "^17.11.0",
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.2.2",
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
   }
 }

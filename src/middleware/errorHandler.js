@@ -4,8 +4,12 @@ const notFound = (req, res, next) => {
   next(error);
 };
 
-// eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, _next) => {
+  // Body-parser failures occur before the routers. Keep the ebook boundary in
+  // effect for those errors too, without changing legacy API response contracts.
+  if (/^\/api\/(?:admin\/|internal\/)?ebooks(?:\/|\?|$)/.test(req.originalUrl)) {
+    return require('../controllers/ebookController').errorHandler(err, req, res, _next);
+  }
   const statusCode = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
 
   res.status(statusCode).json({

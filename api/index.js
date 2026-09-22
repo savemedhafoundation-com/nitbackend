@@ -1,8 +1,10 @@
 const dotenv = require("dotenv");
+
+// Load storage/database configuration before requiring the application.
+dotenv.config();
+
 const connectDB = require("../src/config/db");
 const app = require("../src/app");
-
-dotenv.config();
 
 let isConnected = false; // ✅ Avoid reconnecting every request
 
