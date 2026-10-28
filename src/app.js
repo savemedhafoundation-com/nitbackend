@@ -97,7 +97,9 @@ app.use(
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan(isProduction ? 'combined' : 'dev'));
+const isPrivateRequest = req => /^\/api\/(?:patient|clinical)(?:\/|$)/i.test(req.path);
+app.use(morgan(isProduction ? 'combined' : 'dev', { skip: isPrivateRequest }));
+app.use(morgan(':method :status :response-time ms', { skip: req => !isPrivateRequest(req) }));
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 

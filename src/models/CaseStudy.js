@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { CASE_STUDY_SECTIONS, DEFAULT_CASE_STUDY_SECTION } = require('../constants/caseStudySections');
 
 const tableSchema = new mongoose.Schema(
   {
@@ -150,6 +151,12 @@ const resultSchema = new mongoose.Schema(
 
 const caseStudySchema = new mongoose.Schema(
   {
+    section: {
+      type: String,
+      enum: CASE_STUDY_SECTIONS,
+      default: DEFAULT_CASE_STUDY_SECTION,
+      required: true,
+    },
     title: {
       type: String,
       required: true,
@@ -245,5 +252,6 @@ const caseStudySchema = new mongoose.Schema(
 );
 
 caseStudySchema.index({ title: 'text', abstract: 'text', keywords: 'text' });
+caseStudySchema.index({ section: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('CaseStudy', caseStudySchema);

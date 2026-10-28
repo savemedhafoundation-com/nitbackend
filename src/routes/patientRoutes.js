@@ -1,9 +1,13 @@
 const express = require('express');
-const { getPatientProfile } = require('../controllers/patientController');
+const controller = require('../controllers/patientController');
 const { protect } = require('../middleware/authMiddleware');
-
+const { auditMutation } = require('../middleware/auditMutation');
 const router = express.Router();
-
-router.get('/profile', protect, getPatientProfile);
-
+router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
+router.use(protect);
+router.get('/profile', controller.getPatientProfile);
+router.get('/history', controller.getOwnHistory);
+router.post('/history', auditMutation('patient.history.append.requested'), controller.addOwnHistory);
+router.use('/treatment-plans', require('./treatmentPlanRoutes').patientTreatmentRouter);
+router.use(controller.patientError);
 module.exports = router;

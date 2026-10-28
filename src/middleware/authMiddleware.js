@@ -5,16 +5,23 @@ const protect = async (req, res, next) => {
   let token;
 
   try {
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (req.headers.authorization && /^Bearer [^\s]+$/i.test(req.headers.authorization)) {
       token = req.headers.authorization.split(' ')[1];
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+      if (typeof decoded === 'string' || typeof decoded.id !== 'string') {
+        return res.status(401).json({ message: 'Invalid session token.' });
+      }
 
-      req.user = await User.findById(decoded.id).select('-password');
+      req.user = await User.findById(decoded.id).select('-password +tokenVersion');
 
       if (!req.user) {
         res.status(401);
         throw new Error('Not authorized, user not found');
+      }
+
+      if ((decoded.v ?? 0) !== (req.user.tokenVersion ?? 0)) {
+        return res.status(401).json({ message: 'Session has ended. Please sign in again.' });
       }
 
       return next();

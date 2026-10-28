@@ -1,0 +1,18 @@
+const express = require('express');
+const controller = require('../controllers/patientController');
+const { protect } = require('../middleware/authMiddleware');
+const { requireCentreCapability } = require('../middleware/centreAccess');
+const { auditMutation } = require('../middleware/auditMutation');
+const router = express.Router();
+router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
+router.use(protect);
+router.get('/centres', controller.getClinicalCentres);
+const base = '/centres/:centreId/patients';
+router.get(base, requireCentreCapability('registry.read'), controller.listPatients);
+router.post(base, requireCentreCapability('registry.write'), auditMutation('patient.register.requested'), controller.registerClinicalPatient);
+router.get(`${base}/:patientId`, requireCentreCapability('registry.read'), controller.getClinicalPatient);
+router.get(`${base}/:patientId/history`, requireCentreCapability('history.read'), controller.getClinicalHistory);
+router.post(`${base}/:patientId/history`, requireCentreCapability('history.write'), auditMutation('patient.history.append.requested'), controller.addClinicalHistory);
+router.use(`${base}/:patientId/treatment-plans`, require('./treatmentPlanRoutes').clinicalTreatmentRouter);
+router.use(controller.patientError);
+module.exports = router;

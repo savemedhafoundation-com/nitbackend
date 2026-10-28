@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -182,7 +182,7 @@ export function installBlobMock() {
   };
 }
 
-export async function createBackendHarness({ ebooks = false } = {}) {
+export async function createBackendHarness({ ebooks = false, caseStudies = false, centres = false, patients = false } = {}) {
   const previousEnv = {};
   const testEnv = {
     NODE_ENV: 'test',
@@ -198,9 +198,10 @@ export async function createBackendHarness({ ebooks = false } = {}) {
     process.env[key] = value;
   }
 
-  const server = await MongoMemoryServer.create({
+  const server = await MongoMemoryReplSet.create({
     // Windows/CI hosts may be busy starting the frontend checks at the same time.
-    instance: { dbName: 'ebook_feature_tests', ip: '127.0.0.1', launchTimeout: 60_000 },
+    replSet: { count: 1, storageEngine: 'wiredTiger' },
+    instanceOpts: [{ ip: '127.0.0.1', launchTimeout: 60_000 }],
   });
   await mongoose.connect(server.getUri());
   const storage = installBlobMock();
@@ -208,6 +209,21 @@ export async function createBackendHarness({ ebooks = false } = {}) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/auth', require('../../src/routes/authRoutes'));
+  if (patients) {
+    app.use('/api/patient', require('../../src/routes/patientRoutes'));
+    app.use('/api/clinical', require('../../src/routes/clinicalRoutes'));
+  }
+  if (caseStudies) {
+    const router = require('../../src/routes/caseStudyRoutes');
+    app.use('/api/case-studies', router);
+    app.use('/api/admin/case-studies', router.adminCaseStudyRouter);
+    app.use('/api/blogs', require('../../src/routes/blogRoutes'));
+  }
+  if (centres) {
+    const { protect } = require('../../src/middleware/authMiddleware');
+    const { requireCentreCapability } = require('../../src/middleware/centreAccess');
+    app.get('/api/test/centres/:centreId', protect, requireCentreCapability('clinical.read'), (_req, res) => res.json({ allowed: true }));
+  }
   let Ebook;
   let EbookUpload;
   if (ebooks) {
@@ -218,6 +234,7 @@ export async function createBackendHarness({ ebooks = false } = {}) {
     Ebook = require('../../src/models/Ebook');
     EbookUpload = require('../../src/models/EbookUpload');
   }
+  await Promise.all(Object.values(mongoose.models).map(model => model.createIndexes()));
   const { notFound, errorHandler } = require('../../src/middleware/errorHandler');
   app.use(notFound);
   app.use(errorHandler);
@@ -233,7 +250,7 @@ export async function createBackendHarness({ ebooks = false } = {}) {
     adminAuthorization: undefined,
     patientAuthorization: undefined,
     async reset() {
-      await Promise.all(Object.values(mongoose.models).map(model => model.deleteMany({})));
+      await Promise.all(Object.values(mongoose.models).map(model => model.modelName === 'TreatmentPlanVersion' ? model.collection.deleteMany({}) : model.deleteMany({})));
       storage.reset();
       const users = [
         { _id: new mongoose.Types.ObjectId(), name: 'Test Admin', email: 'ebook-admin@example.test', password: 'unused-test-hash', role: 'admin' },

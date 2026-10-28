@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const { protect, requireAdmin } = require('../middleware/authMiddleware');
 const {
   getBlogs,
   searchBlogs,
@@ -30,17 +31,17 @@ const blogUploads = upload.fields([
 
 router.get('/', getBlogs);
 router.get('/categories', getCategories);
-router.post('/categories', createCategory);
+router.post('/categories', protect, requireAdmin, createCategory);
 router.get('/categories/:categoryId/subcategories', getSubcategories);
-router.post('/categories/:categoryId/subcategories', createSubcategory);
+router.post('/categories/:categoryId/subcategories', protect, requireAdmin, createSubcategory);
 router.get('/search', debounceSearch, searchBlogs);
 router.get('/category/:category', getBlogsByCategory);
 router.get('/:id', getBlogById);
 router.post('/:id/like', likeBlog);
 router.post('/:id/share', shareBlog);
-router.post('/', blogUploads, createBlog);
-router.put('/:id', blogUploads, updateBlog);
-router.delete('/:id', deleteBlog);
+router.post('/', protect, requireAdmin, blogUploads, createBlog);
+router.put('/:id', protect, requireAdmin, blogUploads, updateBlog);
+router.delete('/:id', protect, requireAdmin, deleteBlog);
 router.post('/:id/comments', addComment);
 
 module.exports = router;

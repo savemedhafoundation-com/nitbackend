@@ -11,10 +11,13 @@
     "type-check": "tsc --project tsconfig.ebooks.json --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/ebookBlob.unit.test.mjs tests/ebookConfig.unit.test.mjs",
-    "test:integration": "vitest run tests/auth.integration.test.mjs tests/ebooks.integration.test.mjs",
+    "test:integration": "vitest run tests/auth.integration.test.mjs tests/ebooks.integration.test.mjs tests/caseStudies.integration.test.mjs tests/centreAccess.integration.test.mjs tests/patients.integration.test.mjs tests/treatmentPlans.integration.test.mjs",
     "check:migrations": "node scripts/check-ebook-migration.js",
     "migrate:ebooks": "node scripts/migrateEbooks.js",
     "cleanup:ebooks": "node scripts/cleanupEbooks.js",
+    "patients:setup-access": "node scripts/setupPatientAccess.js",
+    "test:treatment-plans": "vitest run tests/treatmentPlans.integration.test.mjs",
+    "test:patients": "vitest run tests/patients.integration.test.mjs",
     "admin:grant": "node scripts/grantAdmin.js",
     "build": "esbuild api/index.js --bundle --platform=node --target=node22 --format=cjs --packages=external --outfile=dist/index.cjs",
     "vercel-start": "node src/server.js"
@@ -33,6 +36,8 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.1",
+    "firebase-admin": "13.10.0",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.20.0",
@@ -42,6 +47,7 @@
     "node-fetch": "^3.3.2",
     "openai": "^6.8.1",
     "pdf-parse": "^1.1.1",
+    "sanitize-html": "2.17.0",
     "tesseract.js": "^5.1.0"
   },
   "devDependencies": {

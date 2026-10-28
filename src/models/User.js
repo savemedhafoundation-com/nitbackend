@@ -20,9 +20,11 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function () { return !this.firebaseUid; },
       minlength: 6,
     },
+    firebaseUid: { type: String, unique: true, sparse: true, select: false },
+    tokenVersion: { type: Number, default: 0, select: false },
     role: {
       type: String,
       enum: ['patient', 'admin'],
@@ -49,7 +51,7 @@ userSchema.pre('save', async function hashPassword(next) {
 });
 
 userSchema.methods.matchPassword = async function matchPassword(enteredPassword) {
-  return bcrypt.compare(enteredPassword, this.password);
+  return this.password ? bcrypt.compare(enteredPassword, this.password) : false;
 };
 
 const User = mongoose.model('User', userSchema);

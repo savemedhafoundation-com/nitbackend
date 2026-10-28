@@ -1,5 +1,13 @@
+const mongoose = require('mongoose');
 const CaseStudy = require('../models/CaseStudy');
+const { sanitizeCaseStudy } = require('../utils/sanitizeCaseStudy');
 const { saveUploadFile, deleteUploadFile } = require('../utils/fileStorage');
+const {
+  DEFAULT_CASE_STUDY_SECTION,
+  normalizeCaseStudySection,
+} = require('../constants/caseStudySections');
+
+const PUBLIC_FIELDS = 'section title abstract introduction keywords reviewOfLiterature researchGap researchObjectives researchQuestions researchHypothesis caseDescription methodology observation dataAnalysis result ethicalConsideration discussion expectedOutcomes scientificSignificance limitation placeOfResearch conclusion status createdAt updatedAt';
 
 const CASE_STUDY_ROOT_FOLDER = (process.env.CLOUDINARY_CASE_STUDY_FOLDER || 'nit-case-studies').trim();
 const CASE_STUDY_RESULT_IMAGE_FOLDER = `${CASE_STUDY_ROOT_FOLDER}/result-images`;
@@ -257,6 +265,11 @@ const normalizeStatus = value => {
 const buildCaseStudyPayload = (body, options = {}) => {
   const { partial = false } = options;
   const payload = {};
+  if (hasOwn(body, 'section')) {
+    payload.section = normalizeCaseStudySection(body.section);
+  } else if (!partial) {
+    payload.section = DEFAULT_CASE_STUDY_SECTION;
+  }
   const richTextFields = [
     'title',
     'abstract',
@@ -325,7 +338,7 @@ const buildCaseStudyPayload = (body, options = {}) => {
   const result = buildResultSection(body, options);
   if (result) payload.result = result;
 
-  return payload;
+  return sanitizeCaseStudy(payload);
 };
 
 const toSectionObject = value => {
@@ -344,6 +357,9 @@ const mergeSection = (currentValue, patchValue) => {
 };
 
 const applyPayloadToCaseStudy = (caseStudy, payload) => {
+  // Legacy null/missing classifications are disease-specific, including when an
+  // older admin edits another field without supplying a section.
+  caseStudy.section = payload.section ?? caseStudy.section ?? DEFAULT_CASE_STUDY_SECTION;
   const textFields = [
     'title',
     'abstract',
@@ -387,14 +403,38 @@ const applyPayloadToCaseStudy = (caseStudy, payload) => {
 
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const serializeCaseStudy = caseStudy => {
+  const value = caseStudy.toObject();
+  return sanitizeCaseStudy({
+    ...value,
+    section: value.section ?? DEFAULT_CASE_STUDY_SECTION,
+  });
+};
+
 const getCaseStudies = async (req, res, next) => {
   try {
+    // Reject structured/duplicate query input instead of treating it as an
+    // omitted filter or forwarding user-controlled operators to MongoDB.
+    if (Object.keys(req.query).some(key => /^section(?:\[|\.)/.test(key))) {
+      normalizeCaseStudySection(null);
+    }
+    const section = hasOwn(req.query, 'section')
+      ? normalizeCaseStudySection(req.query.section)
+      : undefined;
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
-    const filter = {};
-    if (req.query.status) {
+    const isAdmin = res.locals.caseStudyAdmin === true;
+    const filter = isAdmin ? {} : { status: 'published' };
+    if (section === DEFAULT_CASE_STUDY_SECTION) {
+      // MongoDB's null comparison includes documents without this new field.
+      // Keep this OR separate from the search OR so both filters apply.
+      filter.$and = [{ $or: [{ section }, { section: null }] }];
+    } else if (section) {
+      filter.section = section;
+    }
+    if (isAdmin && req.query.status) {
       filter.status = String(req.query.status).trim().toLowerCase();
     }
     if (req.query.q) {
@@ -403,12 +443,12 @@ const getCaseStudies = async (req, res, next) => {
     }
 
     const [items, total] = await Promise.all([
-      CaseStudy.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      CaseStudy.find(filter).select(PUBLIC_FIELDS).sort({ createdAt: -1 }).skip(skip).limit(limit),
       CaseStudy.countDocuments(filter),
     ]);
 
     return res.status(200).json({
-      data: items,
+      data: items.map(serializeCaseStudy),
       pagination: {
         page,
         limit,
@@ -417,17 +457,21 @@ const getCaseStudies = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
     return next(error);
   }
 };
 
 const getCaseStudyById = async (req, res, next) => {
   try {
-    const caseStudy = await CaseStudy.findById(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Case study not found' });
+    const filter = { _id: req.params.id };
+    if (res.locals.caseStudyAdmin !== true) filter.status = 'published';
+    const caseStudy = await CaseStudy.findOne(filter).select(PUBLIC_FIELDS);
     if (!caseStudy) {
       return res.status(404).json({ message: 'Case study not found' });
     }
-    return res.status(200).json(caseStudy);
+    return res.status(200).json(serializeCaseStudy(caseStudy));
   } catch (error) {
     return next(error);
   }
@@ -460,7 +504,7 @@ const createCaseStudy = async (req, res, next) => {
     }
 
     const caseStudy = await CaseStudy.create(payload);
-    return res.status(201).json(caseStudy);
+    return res.status(201).json(serializeCaseStudy(caseStudy));
   } catch (error) {
     if (error.statusCode) {
       res.status(error.statusCode);
@@ -471,7 +515,9 @@ const createCaseStudy = async (req, res, next) => {
 
 const updateCaseStudy = async (req, res, next) => {
   try {
-    const caseStudy = await CaseStudy.findById(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Case study not found' });
+    const filter = { _id: req.params.id };
+    const caseStudy = await CaseStudy.findOne(filter).select(PUBLIC_FIELDS);
     if (!caseStudy) {
       return res.status(404).json({ message: 'Case study not found' });
     }
@@ -516,7 +562,7 @@ const updateCaseStudy = async (req, res, next) => {
     }
 
     await caseStudy.save();
-    return res.status(200).json(caseStudy);
+    return res.status(200).json(serializeCaseStudy(caseStudy));
   } catch (error) {
     if (error.statusCode) {
       res.status(error.statusCode);
@@ -527,7 +573,9 @@ const updateCaseStudy = async (req, res, next) => {
 
 const deleteCaseStudy = async (req, res, next) => {
   try {
-    const caseStudy = await CaseStudy.findById(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Case study not found' });
+    const filter = { _id: req.params.id };
+    const caseStudy = await CaseStudy.findOne(filter).select(PUBLIC_FIELDS);
     if (!caseStudy) {
       return res.status(404).json({ message: 'Case study not found' });
     }

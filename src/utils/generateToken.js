@@ -1,11 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const generateToken = userId => {
+const generateToken = (userId, tokenVersion = 0) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is not defined');
   }
 
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+  return jwt.sign({ id: userId, v: tokenVersion }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };
